@@ -16,6 +16,7 @@ namespace Glint
         [STAThread]
         public static void Main(string[] args)
         {
+            if (args.Length >= 2 && args[0] == "--demo") { Demo.Run(args[1], args[2..]); return; }
             var single = new Mutex(false, "Glint.SingleInstance");
             bool owned;
             try { owned = single.WaitOne(args.Length > 0 && args[0] == "--relaunch" ? 8000 : 0); }
