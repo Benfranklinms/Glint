@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths: ['src/**', '.github/workflows/demo.yml']
+permissions:
+  contents: write
 jobs:
   demo:
     runs-on: windows-latest
@@ -13,8 +15,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: Publish
-        run: dotnet publish src/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force shots | Out-Null
+          dotnet publish src/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist *> shots\publish-log.txt
+          if ($LASTEXITCODE -ne 0) { Get-Content shots\publish-log.txt; exit 1 }
       - name: Sample files
+        continue-on-error: true
         shell: pwsh
         run: |
           $d = "$env:USERPROFILE\Developer\fsearch"
@@ -28,11 +35,25 @@ jobs:
           Set-Content "$env:USERPROFILE\Documents\resume-final-v3.pdf" "x"
           1..4 | % { [IO.File]::WriteAllBytes("$env:USERPROFILE\Pictures\Screenshots\Screenshot 2026-10-0$_.png", (New-Object byte[] (2MB))) }
       - name: Run demo
+        continue-on-error: true
         shell: pwsh
         run: |
           $p = Start-Process dist\Glint.exe -ArgumentList @('--demo', "$pwd\shots", 'mian', 'raedme', 'resume ext:pdf', 'type:image in:~/Pictures', 'grep:TODO in:~/Developer', 'maintenence') -PassThru
           if (-not $p.WaitForExit(420000)) { $p.Kill() }
+          "exit=$($p.ExitCode)" | Out-File -Append shots\run-log.txt
+          Get-ChildItem -Recurse shots | Out-File -Append shots\run-log.txt
           Get-Content shots\demo-log.txt
+      - name: Commit shots to demo-shots branch
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -ErrorAction SilentlyContinue . -Filter *.log | Out-Null
+          git config user.name "glint-ci"; git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan demo-shots
+          git rm -rf --cached . | Out-Null
+          git add -f shots
+          git commit -m "Demo screenshots $env:GITHUB_SHA"
+          git push -f origin demo-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
