@@ -16,4 +16,7 @@
     <Product>Glint</Product>
     <Description>Spotlight-style whole-disk file search for Windows.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+  </ItemGroup>
 </Project>
