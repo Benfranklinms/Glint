@@ -17,7 +17,7 @@ namespace Glint
     /// and your user folder otherwise.
     public static class ContentSearch
     {
-        private static readonly HashSet<string> TextExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        public static readonly HashSet<string> TextExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "txt","md","markdown","rst","log","csv","tsv","json","jsonc","yaml","yml","toml","ini","cfg","conf","xml","html","htm","css","scss","less",
             "js","mjs","cjs","ts","tsx","jsx","vue","svelte","rs","cs","fs","vb","c","h","cc","cpp","hpp","cxx","m","mm","java","kt","kts","scala","go",
@@ -26,10 +26,10 @@ namespace Glint
         };
 
         /// Documents whose text has to be extracted rather than read.
-        private static readonly HashSet<string> DocExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        public static readonly HashSet<string> DocExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         { "pdf", "docx", "pptx", "xlsx", "odt", "odp" };
 
-        private static readonly string[] SkipDirs =
+        public static readonly string[] SkipDirs =
         {
             "node_modules", ".git", "build", "vendor", "target", "bin", "obj", "dist", ".next", ".venv", "venv", "__pycache__",
             "AppData", "Windows", "Program Files", "Program Files (x86)", "ProgramData", "$Recycle.Bin", ".cache",
@@ -40,7 +40,18 @@ namespace Glint
             bool haveWords = q.Words.Count > 0;
             if (haveWords && q.In == null)
             {
-                foreach (var h in nameHits) if (!h.IsDir) yield return h.Path;
+                foreach (var h in nameHits) if (!h.IsDir && h.Kind == HitKind.File) yield return h.Path;
+                yield break;
+            }
+            // the trigram index narrows the whole indexed area to the few files that can match
+            var indexed = ContentIndex.Candidates(q);
+            if (indexed != null)
+            {
+                foreach (var p in indexed)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    yield return p;
+                }
                 yield break;
             }
             string root = q.In ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -122,7 +133,7 @@ namespace Glint
         /// Text of a file as (number, label, text) chunks: lines for text files,
         /// pages for PDFs, paragraphs/slides/cells for Office and OpenDocument.
         /// A null text means "binary, give up".
-        private static IEnumerable<(int, string, string)> Lines(string path, string ext, bool doc)
+        internal static IEnumerable<(int, string, string)> Lines(string path, string ext, bool doc)
         {
             if (!doc)
             {
