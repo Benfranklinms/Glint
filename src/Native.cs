@@ -41,11 +41,11 @@ namespace Glint
         [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
         public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20, DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWA_SYSTEMBACKDROP_TYPE = 38;
 
-        public static bool TryAcrylic(IntPtr hwnd)
+        public static bool TryAcrylic(IntPtr hwnd, bool darkMode = true)
         {
             try
             {
-                int dark = 1, round = 2, acrylic = 3;
+                int dark = darkMode ? 1 : 0, round = 2, acrylic = 3;
                 DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4);
                 DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, 4);
                 if (Environment.OSVersion.Version.Build < 22621) return false;
