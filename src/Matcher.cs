@@ -9,8 +9,13 @@ using System.Threading.Tasks;
 
 namespace Glint
 {
+    public enum HitKind { File, App, Setting, Calc }
+
     public sealed class Hit
     {
+        public HitKind Kind;
+        public string Launch;    // apps: what to start (a .lnk path, "shell:AppsFolder\\id", "ms-settings:...")
+        public string Subtitle;  // apps/settings/calc: the grey line under the name
         public int Index;
         public string Name;
         public string Path;
@@ -166,11 +171,15 @@ namespace Glint
 
         /// Where a file lives matters as much as its name: your own folders
         /// beat toolchains, caches and system trees. Walks the parent chain once.
-        private static int LocationBias(string[] names, int[] parents, int i, int userDir)
+        public const int Excluded = int.MinValue;
+
+        private static int LocationBias(string[] names, int[] parents, int i, int userDir, HashSet<int> excluded)
         {
             bool underUser = false, noisy = false; int depth = 0;
+            if (excluded.Count > 0 && excluded.Contains(i)) return Excluded;
             for (int p = parents[i]; p >= 0; p = parents[p])
             {
+                if (excluded.Count > 0 && excluded.Contains(p)) return Excluded;
                 if (p == userDir) { underUser = true; break; }
                 string n = names[p];
                 if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) noisy = true;
@@ -179,7 +188,9 @@ namespace Glint
             }
             if (underUser)
                 for (int p = parents[i]; p >= 0 && p != userDir; p = parents[p])
-                { string n = names[p]; if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) { noisy = true; break; } }
+                {
+                    if (excluded.Count > 0 && excluded.Contains(p)) return Excluded;
+                    string n = names[p]; if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) { noisy = true; break; } }
             int b = -Math.Min(depth * 6, 60);
             if (noisy) b -= 220;
             else if (underUser) b += 160;
@@ -296,15 +307,16 @@ namespace Glint
 
         public static List<Hit> Search(FileIndex idx, Query q, CancellationToken ct)
         {
-            int n = idx.Count;
             var names = idx.Names; var parents = idx.Parents; var flags = idx.Flags; var masks = idx.Masks;
+            int n = Math.Min(idx.Count, Math.Min(Math.Min(names.Length, parents.Length), Math.Min(flags.Length, masks.Length)));
+            var excludedDirs = idx.ExcludedDirs;
             int inDir = -1;
             if (q.In != null) { inDir = idx.FindDir(q.In); if (inDir < 0) return new List<Hit>(); }
             var include = q.Words.Where(w => !w.Exclude).ToList();
             var exclude = q.Words.Where(w => w.Exclude).ToList();
 
             const int Keep = 400;
-            int userDir = idx.FindDir(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            int userDir = idx.UserDir;
             var buckets = new List<(int score, int i, bool typo, string word)>[Environment.ProcessorCount];
             int chunk = Math.Max(1 << 15, n / (buckets.Length * 4) + 1);
             int parts = (n + chunk - 1) / chunk;
@@ -346,7 +358,9 @@ namespace Glint
                     if (!ok) continue;
                     if (inDir >= 0 && !idx.IsUnder(i, inDir)) continue;
                     if (include.Count == 0) total = 500 - Math.Min(name.Length, 120);
-                    total += LocationBias(names, parents, i, userDir);
+                    int bias = LocationBias(names, parents, i, userDir, excludedDirs);
+                    if (bias == Excluded) continue;
+                    total += bias;
                     local.Add((total, i, anyTypo, corrected));
                 }
                 if (local.Count > Keep) local = local.OrderByDescending(x => x.Item1).Take(Keep).ToList();
@@ -361,7 +375,7 @@ namespace Glint
                 string path = idx.PathOf(i);
                 string lower = path.ToLowerInvariant();
                 if (q.PathContains != null && lower.IndexOf(q.PathContains.ToLowerInvariant(), StringComparison.Ordinal) < 0) continue;
-                int s = score;
+                int s = score + Usage.Bonus(path);
                 hits.Add(new Hit { Index = i, Name = names[i], Path = path, IsDir = (flags[i] & FileIndex.Dir) != 0, Score = s, ViaTypo = typo, Corrected = word });
             }
             IEnumerable<Hit> ordered = hits.OrderByDescending(h => h.Score);
