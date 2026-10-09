@@ -28,9 +28,9 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          $a = '--demo "' + "$pwd\shots" + '" "mian" "raedme" "resume ext:pdf" "grep:normalization ext:pdf" "grep:Harmonic" "grep:TODO in:~/Developer" "maintenence"'
+          $a = '--demo "' + "$pwd\shots" + '" "mian" "@Apps calc" "bluetooth" "18% of 4500" "5 km in miles" "@Images screenshot" "grep:normalization" "@Documents resume" "grep:TODO" "raedme" "notepad"'
           $p = Start-Process dist\Glint.exe -ArgumentList $a -PassThru
-          if (-not $p.WaitForExit(420000)) { $p.Kill() }
+          if (-not $p.WaitForExit(840000)) { $p.Kill() }
           "exit=$($p.ExitCode)" | Out-File -Append shots\run-log.txt
           Get-ChildItem -Recurse shots | Out-File -Append shots\run-log.txt
           Get-Content shots\demo-log.txt
