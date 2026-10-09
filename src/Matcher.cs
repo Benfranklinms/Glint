@@ -169,13 +169,17 @@ namespace Glint
             "Modules", "hostedtoolcache", "Library", "__pycache__", "venv", "build",
         };
 
+        /// Component stores no one opens by hand: below even other system files.
+        private static readonly HashSet<string> BuriedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { "WinSxS", "servicing", "SoftwareDistribution", "assembly", "Installer", "DriverStore", "pkgs", "hostedtoolcache" };
+
         /// Where a file lives matters as much as its name: your own folders
         /// beat toolchains, caches and system trees. Walks the parent chain once.
         public const int Excluded = int.MinValue;
 
         private static int LocationBias(string[] names, int[] parents, int i, int userDir, HashSet<int> excluded)
         {
-            bool underUser = false, noisy = false; int depth = 0;
+            bool underUser = false, noisy = false, buried = false; int depth = 0;
             if (excluded.Count > 0 && excluded.Contains(i)) return Excluded;
             for (int p = parents[i]; p >= 0; p = parents[p])
             {
@@ -183,6 +187,7 @@ namespace Glint
                 if (p == userDir) { underUser = true; break; }
                 string n = names[p];
                 if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) noisy = true;
+                if (BuriedDirs.Contains(n)) buried = true;
                 depth++;
                 if (depth > 64) break;
             }
@@ -193,6 +198,7 @@ namespace Glint
                     string n = names[p]; if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) { noisy = true; break; } }
             int b = -Math.Min(depth * 6, 60);
             if (noisy) b -= 220;
+            if (buried) b -= 300;
             else if (underUser) b += 160;
             return b;
         }
