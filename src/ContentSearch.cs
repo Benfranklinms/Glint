@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
+using System.Net;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -23,6 +25,10 @@ namespace Glint
             "csproj","sln","props","targets","cmake","make","mk","dockerfile","tex","bib","ipynb","env","gitignore","editorconfig","lock",
         };
 
+        /// Documents whose text has to be extracted rather than read.
+        private static readonly HashSet<string> DocExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { "pdf", "docx", "pptx", "xlsx", "odt", "odp" };
+
         private static readonly string[] SkipDirs =
         {
             "node_modules", ".git", "build", "vendor", "target", "bin", "obj", "dist", ".next", ".venv", "venv", "__pycache__",
@@ -31,7 +37,7 @@ namespace Glint
 
         public static IEnumerable<string> Candidates(FileIndex idx, Query q, List<Hit> nameHits, CancellationToken ct)
         {
-            bool haveWords = q.Words.Count > 0 || q.Exts != null;
+            bool haveWords = q.Words.Count > 0;
             if (haveWords && q.In == null)
             {
                 foreach (var h in nameHits) if (!h.IsDir) yield return h.Path;
@@ -57,7 +63,7 @@ namespace Glint
                     else
                     {
                         string ext = Path.GetExtension(fsi.Name).TrimStart('.');
-                        if (q.Exts != null ? q.Exts.Contains(ext.ToLowerInvariant()) : TextExts.Contains(ext)) yield return fsi.FullName;
+                        if (q.Exts != null ? q.Exts.Contains(ext.ToLowerInvariant()) : (TextExts.Contains(ext) || DocExts.Contains(ext))) yield return fsi.FullName;
                     }
                 }
             }
@@ -84,14 +90,14 @@ namespace Glint
                     try
                     {
                         var fi = new FileInfo(path);
-                        if (fi.Length == 0 || fi.Length > 4 << 20) return;
-                        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
-                        using var sr = new StreamReader(fs, Encoding.UTF8, true);
-                        string line; int ln = 0, perFile = 0;
-                        while ((line = sr.ReadLine()) != null)
+                        string ext = Path.GetExtension(path).TrimStart('.');
+                        bool doc = DocExts.Contains(ext);
+                        if (fi.Length == 0 || fi.Length > (doc ? 60L << 20 : 4L << 20)) return;
+                        int perFile = 0;
+                        foreach (var (ln, label, line) in Lines(path, ext, doc))
                         {
-                            ln++;
-                            if (ln == 1 && line.IndexOf('\0') >= 0) return; // binary
+                            if (ct.IsCancellationRequested) return;
+                            if (line == null) return; // binary
                             int at, len;
                             if (re != null) { var m = re.Match(line); if (!m.Success) continue; at = m.Index; len = m.Length; }
                             else { at = line.IndexOf(needle, cmp); if (at < 0) continue; len = needle.Length; }
@@ -103,7 +109,7 @@ namespace Glint
                                 snippet = snippet.Substring(from, Math.Min(160, snippet.Length - from));
                                 start = at - from;
                             }
-                            found(new Hit { Name = Path.GetFileName(path), Path = path, Line = ln, Snippet = snippet.Replace('\t', ' '), MatchStart = start, MatchLength = Math.Min(len, snippet.Length - start) });
+                            found(new Hit { Name = Path.GetFileName(path), Path = path, Line = ln, LineLabel = label, Snippet = snippet.Replace('\t', ' ').Replace('\n', ' '), MatchStart = start, MatchLength = Math.Min(len, snippet.Length - start) });
                             if (++perFile >= 5) break;
                         }
                     }
@@ -111,6 +117,89 @@ namespace Glint
                 });
             }
             catch (OperationCanceledException) { }
+        }
+
+        /// Text of a file as (number, label, text) chunks: lines for text files,
+        /// pages for PDFs, paragraphs/slides/cells for Office and OpenDocument.
+        /// A null text means "binary, give up".
+        private static IEnumerable<(int, string, string)> Lines(string path, string ext, bool doc)
+        {
+            if (!doc)
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+                using var sr = new StreamReader(fs, Encoding.UTF8, true);
+                string line; int ln = 0;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    ln++;
+                    if (ln == 1 && line.IndexOf('\0') >= 0) { yield return (0, null, null); yield break; }
+                    yield return (ln, null, line);
+                }
+                yield break;
+            }
+            if (ext.Equals("pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var x in PdfPages(path)) yield return x;
+                yield break;
+            }
+            foreach (var x in ZipDoc(path, ext.ToLowerInvariant())) yield return x;
+        }
+
+        private static IEnumerable<(int, string, string)> PdfPages(string path)
+        {
+            UglyToad.PdfPig.PdfDocument pdf = null;
+            try { pdf = UglyToad.PdfPig.PdfDocument.Open(path, new UglyToad.PdfPig.ParsingOptions { UseLenientParsing = true, SkipMissingFonts = true }); }
+            catch { }
+            if (pdf == null) yield break;
+            using (pdf)
+            {
+                int pages = Math.Min(pdf.NumberOfPages, 500);
+                for (int p = 1; p <= pages; p++)
+                {
+                    string text = null;
+                    try { text = string.Join(" ", pdf.GetPage(p).GetWords().Select(w => w.Text)); } catch { }
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    // long pages are split so a snippet stays near its match
+                    for (int i = 0; i < text.Length; i += 2000)
+                        yield return (p, "page " + p, text.Substring(i, Math.Min(2400, text.Length - i)));
+                }
+            }
+        }
+
+        private static readonly Regex Tag = new Regex("<[^>]+>", RegexOptions.Compiled);
+
+        private static IEnumerable<(int, string, string)> ZipDoc(string path, string ext)
+        {
+            var parts = new List<(int n, string label, string xml, string split)>();
+            try
+            {
+                using var zip = ZipFile.OpenRead(path);
+                string Read(ZipArchiveEntry e) { using var r = new StreamReader(e.Open()); return r.ReadToEnd(); }
+                if (ext == "docx") { var e = zip.GetEntry("word/document.xml"); if (e != null) parts.Add((0, "para", Read(e), "</w:p>")); }
+                else if (ext == "xlsx") { var e = zip.GetEntry("xl/sharedStrings.xml"); if (e != null) parts.Add((0, "cell", Read(e), "</si>")); }
+                else if (ext == "pptx")
+                {
+                    foreach (var e in zip.Entries.Where(e => e.FullName.StartsWith("ppt/slides/slide") && e.FullName.EndsWith(".xml")))
+                    {
+                        int.TryParse(new string(e.Name.Where(char.IsDigit).ToArray()), out int n);
+                        parts.Add((n, "slide " + n, Read(e), "</a:p>"));
+                    }
+                    parts.Sort((a, b) => a.n.CompareTo(b.n));
+                }
+                else { var e = zip.GetEntry("content.xml"); if (e != null) parts.Add((0, "para", Read(e), "</text:p>")); }
+            }
+            catch { }
+            foreach (var (n, label, xml, split) in parts)
+            {
+                int k = 0;
+                foreach (var chunk in xml.Split(split))
+                {
+                    k++;
+                    string text = WebUtility.HtmlDecode(Tag.Replace(chunk, ""));
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    yield return (n > 0 ? n : k, label.StartsWith("slide") ? label : label + " " + k, text);
+                }
+            }
         }
     }
 }
