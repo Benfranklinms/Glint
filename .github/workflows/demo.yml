@@ -23,17 +23,7 @@ jobs:
       - name: Sample files
         continue-on-error: true
         shell: pwsh
-        run: |
-          $d = "$env:USERPROFILE\Developer\fsearch"
-          New-Item -ItemType Directory -Force "$d\src","$env:USERPROFILE\Documents\College","$env:USERPROFILE\Pictures\Screenshots" | Out-Null
-          Set-Content "$d\src\main.rs" "fn main() {`n    // TODO: wire up the daemon`n    let dir = apply_dir(\"~\");`n}"
-          Set-Content "$d\src\index.rs" "pub fn apply_dir(p: &str) -> String {`n    // TODO: handle symlinks`n    p.to_string()`n}"
-          Set-Content "$d\Cargo.toml" "[package]`nname = `"fsearch`""
-          Set-Content "$d\README.md" "# fsearch"
-          Copy-Item tools\samples\DBMS-lab-report.pdf,tools\samples\placement-notes.docx "$env:USERPROFILE\Documents\College\"
-          Set-Content "$env:USERPROFILE\Documents\College\maintenance-notes.md" "x"
-          Copy-Item tools\samples\resume-final-v3.pdf "$env:USERPROFILE\Documents\"
-          1..4 | % { [IO.File]::WriteAllBytes("$env:USERPROFILE\Pictures\Screenshots\Screenshot 2026-10-0$_.png", (New-Object byte[] (2MB))) }
+        run: ./tools/ci-samples.ps1 *> shots/samples-log.txt; Get-Content shots/samples-log.txt
       - name: Run demo
         continue-on-error: true
         shell: pwsh
