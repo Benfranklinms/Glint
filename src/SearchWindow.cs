@@ -174,9 +174,13 @@ namespace Glint
             }
         }
 
+        private double screenDip = 4000;
+
         public void UpdateWidth()
         {
-            Width = ListWidth + (settings.Preview ? PreviewWidth + 12 : 0) + (acrylic ? 0 : 60);
+            double want = ListWidth + (settings.Preview ? PreviewWidth + 12 : 0) + (acrylic ? 0 : 60);
+            // on a small screen the bar shrinks rather than running off the edge
+            Width = Math.Min(want, Math.Max(560, screenDip - 32));
             if (!settings.Preview) previewHost.Visibility = Visibility.Collapsed;
         }
 
@@ -217,6 +221,8 @@ namespace Glint
             UpdateLayout();
             Native.GetCursorPos(out var pt);
             var scr = WinForms.Screen.FromPoint(new System.Drawing.Point(pt.X, pt.Y)).WorkingArea;
+            double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            if (Math.Abs(scr.Width / scale - screenDip) > 1) { screenDip = scr.Width / scale; UpdateWidth(); UpdateLayout(); }
             Native.GetWindowRect(hwnd, out var r);
             int w = r.Right - r.Left;
             int x = scr.Left + (scr.Width - w) / 2;
@@ -322,6 +328,7 @@ namespace Glint
                 int total = hits.Count + apps.Count;
                 SetFooter(calc != null && total == 0 ? "Enter copies the answer" :
                     total == 0 ? (index.Ready ? "No matches" : index.Status)
+                    : appsOnly ? $"{total} result{(total == 1 ? "" : "s")}  ·  Enter open   Tab filters   Ctrl+, settings"
                     : $"{did}{total} result{(total == 1 ? "" : "s")} in {ms:0.0} ms  ·  Enter open   Ctrl+Enter show in folder   Tab filters   Ctrl+, settings");
                 return;
             }
