@@ -1,0 +1,28 @@
+index ready=True mft=True after 36.7s: 1,341,303 items indexed in 36.4 s
+saved index: 15.5 MB
+reload ready=True fromCache=True after 0.57s: 1,341,306 items (saved index) · refreshing… count=1341306
+content index complete=True after 0.5s: Content index: 8 files
+apps ready=True
+Q mian: 81.6 ms names=[D:\a\Glint\Glint\docs\screenshots\typo-mian.png | C:\Users\runneradmin\Developer\fsearch\src\main.rs | C:\mingw32\opt\lib\python3.14\_pyrepl\main.py] apps=[] calc=
+Q @Apps calc: 51.9 ms names=[D:\a\Glint\Glint\src\Calc.cs | C:\rtools45\usr\share\perl5\core_perl\Math\BigInt\Calc.pm | C:\Strawberry\perl\lib\Math\BigInt\Calc.pm] apps=[Calculator] calc=
+Q bluetooth: 40.1 ms names=[C:\Windows\diagnostics\system\Bluetooth | C:\Windows\System32\Tasks\Microsoft\Windows\Bluetooth | C:\rtools45\x86_64-w64-mingw32.static.posix\include\bluetoothapis.h] apps=[Bluetooth & devices] calc=
+Q 18% of 4500: 6.2 ms names=[] apps=[] calc=810
+Q 5 km in miles: 13.5 ms names=[C:\Windows\WinSxS\FileMaps\program_files_common_files_microsoft_shared_ink_km-kh_957ccbe808f2c89a.cdf-ms | C:\Windows\WinSxS\FileMaps\program_files_common_files_microsoft_shared_ink_fsdefinitions_oskmenu_4ada925d6aba5911.cdf-ms | C:\Windows\WinSxS\FileMaps\program_files_common_files_microsoft_shared_ink_kok-in_547bc6645b351617.cdf-ms] apps=[] calc=3.106855961 miles
+Q @Images screenshot: 53.6 ms names=[C:\Users\runneradmin\Pictures\Screenshots | C:\Users\runneradmin\Pictures\Screenshots\Screenshot 2026-10-01.png | C:\Users\runneradmin\Pictures\Screenshots\Screenshot 2026-10-02.png] apps=[] calc=
+Q grep:normalization: 265.2 ms names=[C:\Users\runneradmin\query | C:\Users\runneradmin\Music | C:\Users\runneradmin\Links] apps=[] calc= index-candidates=2 grep=6 ms hits=[DBMS-lab-report.pdf page 2 | DBMS-lab-report.pdf page 1 | placement-notes.docx para 2]
+Q @Documents resume: 71.2 ms names=[C:\Users\runneradmin\Documents\resume-final-v3.pdf | D:\a\Glint\Glint\tools\samples\resume-final-v3.pdf | C:\msys64\usr\share\man\man3\CURLOPT_RESUME_FROM.3.gz] apps=[] calc=
+Q grep:TODO: 156.0 ms names=[C:\Users\runneradmin\query | C:\Users\runneradmin\Music | C:\Users\runneradmin\Links] apps=[] calc= index-candidates=2 grep=0 ms hits=[main.rs line 2 | index.rs line 2]
+Q raedme: 78.5 ms names=[D:\a\Glint\Glint\docs\screenshots\typo-raedme.png | C:\Users\runneradmin\Developer\fsearch\README.md | C:\cobertura-2.1.1\examples\basic\README] apps=[] calc=
+Q notepad: 61.5 ms names=[C:\Program Files\Git\usr\bin\notepad | C:\Windows\WinSxS\wow64_microsoft-windows-notepad_31bf3856ad364e35_10.0.26100.7309_none_153b2556545ff4b3\notepad.exe | C:\Windows\WinSxS\amd64_microsoft-windows-notepad-shell_31bf3856ad364e35_10.0.26100.7019_none_294a573282df800b\Notepad.lnk] apps=[Notepad] calc=
+dropin frames=16
+01 mian
+02 @Apps calc
+03 bluetooth
+04 18% of 4500
+05 5 km in miles
+06 @Images screenshot
+07 grep:normalization
+08 @Documents resume
+09 grep:TODO
+10 raedme
+11 notepad

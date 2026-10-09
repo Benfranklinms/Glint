@@ -1,0 +1,5 @@
+  Determining projects to restore...
+  Restored D:\a\Glint\Glint\src\Glint.csproj (in 9.54 sec).
+CSC : warning WFAC010: Remove high DPI settings from D:\a\Glint\Glint\src\app.manifest and configure via Application.SetHighDpiMode API or 'ApplicationHighDpiMode' project property [D:\a\Glint\Glint\src\Glint.csproj]
+  Glint -> D:\a\Glint\Glint\src\bin\Release\net8.0-windows\win-x64\Glint.dll
+  Glint -> D:\a\Glint\Glint\dist\

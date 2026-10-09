@@ -1,0 +1,58 @@
+
+FullName
+--------
+C:\Users\runneradmin\Developer\fsearch\src
+C:\Users\runneradmin\Developer\fsearch\Cargo.toml
+C:\Users\runneradmin\Developer\fsearch\README.md
+C:\Users\runneradmin\Developer\fsearch\src\index.rs
+C:\Users\runneradmin\Developer\fsearch\src\main.rs
+C:\Users\runneradmin\Documents\College
+C:\Users\runneradmin\Documents\Visual Studio 18
+C:\Users\runneradmin\Documents\resume-final-v3.pdf
+C:\Users\runneradmin\Documents\College\DBMS-lab-report.pdf
+C:\Users\runneradmin\Documents\College\maintenance-notes.md
+C:\Users\runneradmin\Documents\College\placement-notes.docx
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\JavaScript
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Python
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\SQL_SSDT
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\TypeScript
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual Basic
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual C#
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual C++
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual Web Developer
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\XAML
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\XML
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\JavaScript\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Python\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\SQL_SSDT\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\TypeScript\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual Basic\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual C#\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual C++\My Code Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual Web Developer\My CSS Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\Visual Web Developer\My HTML Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\XAML\My XAML Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Code Snippets\XML\My Xml Snippets
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\C#
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\Extensibility
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\JavaScript
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\Service Fabric
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\TypeScript
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\Visual Basic
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\Visual C++
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\Visual C++ Project
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ItemTemplates\Visual Web Developer
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\C#
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\Extensibility
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\JavaScript
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\Service Fabric
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\TypeScript
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\Visual Basic
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\Visual C++
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\Visual C++ Project
+C:\Users\runneradmin\Documents\Visual Studio 18\Templates\ProjectTemplates\Visual Web Developer
+
