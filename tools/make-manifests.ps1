@@ -52,7 +52,7 @@ ManifestVersion: 1.6.0
 PackageIdentifier: $id
 PackageVersion: $Version
 PackageLocale: en-US
-Publisher: Benfranklin M S
+Publisher: Benfranklinms
 PackageName: Glint
 License: MIT
 ShortDescription: Spotlight-style search for Windows - files, apps, Settings and sums, typos forgiven.
