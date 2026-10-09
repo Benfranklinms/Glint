@@ -2,9 +2,15 @@
 
 Spotlight-style search for Windows. Press **Alt+Space**, the bar drops in, and any file on your disk is a few letters away — typos included.
 
-![Glint drop-in (mock-up)](docs/glint-drop-in.gif)
+![Typo-tolerant search: "mian" finds main.rs](docs/screenshots/typo-mian.png)
 
-> The images here are rendered mock-ups of the design, not screen recordings. Glint v0.1 has not been tested on real Windows hardware yet.
+> Real screenshots from Glint running on Windows (GitHub Actions `windows-latest`, 1,341,289 files indexed from the NTFS MFT in 43 s). The runner is Windows Server, so they show the solid dark panel; Windows 11 gets acrylic glass. The sample files are laid out by [`tools/ci-samples.ps1`](tools/ci-samples.ps1), and the [demo workflow](.github/workflows/demo.yml) retakes these on every change.
+
+| Search inside PDFs | Inside Word documents |
+| --- | --- |
+| ![grep inside a PDF](docs/screenshots/inside-pdf.png) | ![grep inside a docx](docs/screenshots/inside-docx.png) |
+| **Inside code** | **Typos fixed** |
+| ![grep TODO in code](docs/screenshots/grep-code.png) | ![raedme finds README.md](docs/screenshots/typo-raedme.png) |
 
 A Windows port of [fsearch](https://github.com/noahdunnagan/fsearch) by Noah Dunnagan (MIT), rebuilt in C#/WPF with a launcher UI.
 
@@ -13,6 +19,9 @@ A Windows port of [fsearch](https://github.com/noahdunnagan/fsearch) by Noah Dun
 - **Whole-disk name search.** Every file and folder on every fixed drive, ranked as you type.
 - **Forgives typos.** 4-letter words forgive a swapped pair (`mian` → `main`), 5+ letters forgive any one mistake (`raedme` → `README.md`).
 - **Searches inside files.** `grep:apply_dir` or `regex:fn\s+\w+_dir`, smart-case, with the match highlighted. Enter opens VS Code at the line when `code` is on your PATH.
+- **Reads PDFs and Office files too.** `grep:normalization ext:pdf` searches PDF text page by page; `.docx`, `.pptx`, `.xlsx`, `.odt` and `.odp` work the same way, showing the page, slide or paragraph.
+- **Your files first.** Results in your user folder outrank toolchains, caches and system trees like `Windows`, `Program Files` and `AppData`.
+- **Starts with Windows.** It turns on *Open at sign-in* the first time it runs; once fast mode is on, a logon task starts it with admin rights so there is no UAC prompt at boot.
 - **Drops in like Spotlight.** Centered on the monitor your pointer is on, with a short spring and fade. Acrylic glass on Windows 11 22H2+, a solid dark panel elsewhere.
 - **Grab the file.** Drag a result into Explorer, a chat or an upload box. Ctrl+C copies the file itself, Ctrl+Shift+C copies its path.
 
@@ -53,8 +62,8 @@ Filters: `ext:` `type:` `kind:` `in:` `path:` `size:` `mtime:` `grep:` `regex:` 
 | Interface | CLI + daemon, Rust crate | Launcher bar + tray |
 | First index | `getattrlistbulk` | NTFS MFT (admin) or folder crawl |
 | Live updates | FSEvents | USN journal or FileSystemWatcher |
-| Content search | Trigram index | Parallel scan (index planned) |
-| Speed | ~1 ms names | Tens of ms on millions of names (estimate, untested) |
+| Content search | Trigram index, text files | Parallel scan (index planned), text + PDF + Office |
+| Speed | ~1 ms names | 87–220 ms on 1.34M names on a 2-core CI runner |
 
 ## Build
 
@@ -62,8 +71,8 @@ Filters: `ext:` `type:` `kind:` `in:` `path:` `size:` `mtime:` `grep:` `regex:` 
 dotnet publish src/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-GitHub Actions builds `Glint.exe` on every push and attaches it to `v*` releases.
+GitHub Actions builds `Glint.exe` on every push and attaches it to `v*` releases. `Glint.exe --demo <dir> <query>...` indexes, runs each query and saves screenshots; CI uses it for the images above.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Original fsearch © Noah Dunnagan.
+MIT — see [LICENSE](LICENSE). Original fsearch © Noah Dunnagan. PDF text extraction uses [PdfPig](https://github.com/UglyToad/PdfPig) (Apache-2.0).
