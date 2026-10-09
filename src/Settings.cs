@@ -10,8 +10,18 @@ namespace Glint
     {
         public string Hotkey { get; set; } = "Alt+Space";   // or "Ctrl+Space", "Win+Alt+Space"
         public bool Welcomed { get; set; }
+        public string Theme { get; set; } = "System";       // "Dark", "Light", "System"
+        public bool Preview { get; set; } = true;           // preview pane beside results
+        public bool IncludeRemovable { get; set; }          // USB drives
+        public bool IncludeNetwork { get; set; }            // mapped network drives
+        public bool AutoUpdate { get; set; } = true;
+        public bool SaveIndex { get; set; } = true;         // instant start from a saved index
+        public bool ContentIndex { get; set; } = true;      // trigram index for grep:
+        public bool Apps { get; set; } = true;              // apps, Settings pages, calculator
+        public System.Collections.Generic.List<string> Excluded { get; set; } = new System.Collections.Generic.List<string>();
+        public System.Collections.Generic.List<string> ContentFolders { get; set; } = new System.Collections.Generic.List<string>();
 
-        private static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glint");
+        public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glint");
         private static string FilePath => Path.Combine(Dir, "settings.json");
 
         public static Settings Load()
