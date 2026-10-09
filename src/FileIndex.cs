@@ -53,9 +53,35 @@ namespace Glint
             public long NextUsn;
             public FileSystemWatcher Watcher;
             public Dictionary<string, int> DirsByPath; // crawl mode
+            public volatile bool Stopped;              // replaced by a rebuild
         }
 
         // ---------- building ----------
+
+        public Settings Settings = new Settings();
+        public bool FromCache { get; private set; }
+        /// Bumped whenever the arrays are replaced wholesale (a rebuild swapped in).
+        public int Epoch;
+        public HashSet<int> ExcludedDirs = new HashSet<int>();
+        private int userDir = -2, userDirEpoch = -1;
+
+        public static string Letter(DriveInfo d) => d.Name.TrimEnd('\\');
+
+        private List<DriveInfo> Drives()
+        {
+            var s = Settings;
+            return DriveInfo.GetDrives().Where(d =>
+            {
+                try
+                {
+                    if (!d.IsReady) return false;
+                    return d.DriveType == DriveType.Fixed
+                        || (s.IncludeRemovable && d.DriveType == DriveType.Removable)
+                        || (s.IncludeNetwork && d.DriveType == DriveType.Network);
+                }
+                catch { return false; }
+            }).ToList();
+        }
 
         public void Start()
         {
@@ -63,21 +89,204 @@ namespace Glint
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 bool admin = Native.IsAdmin();
-                var drives = DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed).ToList();
-                Parallel.ForEach(drives, new ParallelOptions { MaxDegreeOfParallelism = 2 }, d =>
+                var drives = Drives();
+                var letters = drives.Select(Letter).ToList();
+                bool loaded = false;
+                if (Settings.SaveIndex)
                 {
-                    var v = new Volume { Letter = d.Name.TrimEnd('\\') };
-                    lock (write) { v.Root = AddUnlocked(v.Letter, -1, Dir); volumes.Add(v); }
-                    bool ok = admin && string.Equals(d.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase) && TryReadMft(v);
-                    if (ok) UsedMft = true; else Crawl(v);
-                });
-                MarkHidden();
-                Ready = true;
-                Status = $"{count:N0} items indexed in {sw.Elapsed.TotalSeconds:0.0} s" + (UsedMft ? "" : " (folder crawl)");
+                    try { loaded = IndexCache.TryLoad(this, letters); } catch { loaded = false; }
+                }
+                if (loaded)
+                {
+                    FromCache = true;
+                    Ready = true;
+                    Status = $"{count:N0} items ready in {sw.Elapsed.TotalSeconds:0.0} s (saved index)";
+                    RefreshExcluded();
+                    Interlocked.Increment(ref Generation);
+                    Changed?.Invoke();
+
+                    // NTFS volumes catch up from the change journal where they left off;
+                    // anything else (or a journal that has moved on) gets a fresh scan.
+                    bool rebuild = false;
+                    foreach (var v in volumes)
+                        if (v.Frn == null || !admin || !JournalStillCovers(v)) { rebuild = true; break; }
+                    if (rebuild)
+                    {
+                        Status = $"{count:N0} items (saved index) · refreshing…";
+                        var fresh = new FileIndex { Settings = Settings };
+                        fresh.Build(drives, admin);
+                        SwapIn(fresh);
+                        Status = $"{count:N0} items indexed in {sw.Elapsed.TotalSeconds:0.0} s" + (UsedMft ? "" : " (folder crawl)");
+                    }
+                    else
+                    {
+                        UsedMft = true;
+                        Status = $"{count:N0} items · ready in {sw.Elapsed.TotalSeconds:0.0} s from saved index";
+                    }
+                }
+                else
+                {
+                    Build(drives, admin);
+                    Status = $"{count:N0} items indexed in {sw.Elapsed.TotalSeconds:0.0} s" + (UsedMft ? "" : " (folder crawl)");
+                    Ready = true;
+                }
+                RefreshExcluded();
                 Interlocked.Increment(ref Generation);
                 Changed?.Invoke();
                 foreach (var v in volumes) StartLive(v);
+                if (Settings.SaveIndex) { SaveNow(); StartAutoSave(); }
             });
+        }
+
+        /// A full fresh scan, swapped in when done (Settings > Rebuild index).
+        public void Rebuild()
+        {
+            Task.Run(() =>
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                Status = $"{count:N0} items · rebuilding…";
+                Changed?.Invoke();
+                var fresh = new FileIndex { Settings = Settings };
+                fresh.Build(Drives(), Native.IsAdmin());
+                SwapIn(fresh);
+                Status = $"{count:N0} items indexed in {sw.Elapsed.TotalSeconds:0.0} s" + (UsedMft ? "" : " (folder crawl)");
+                RefreshExcluded();
+                Interlocked.Increment(ref Generation);
+                Changed?.Invoke();
+                foreach (var v in volumes) StartLive(v);
+                SaveNow();
+            });
+        }
+
+        private void Build(List<DriveInfo> drives, bool admin)
+        {
+            Parallel.ForEach(drives, new ParallelOptions { MaxDegreeOfParallelism = 2 }, d =>
+            {
+                var v = new Volume { Letter = Letter(d) };
+                lock (write) { v.Root = AddUnlocked(v.Letter, -1, Dir); volumes.Add(v); }
+                bool ntfs = false;
+                try { ntfs = string.Equals(d.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase) && d.DriveType != DriveType.Network; } catch { }
+                bool ok = admin && ntfs && TryReadMft(v);
+                if (ok) UsedMft = true; else Crawl(v);
+            });
+            MarkHidden();
+        }
+
+        /// Takes over a freshly built index in one step.
+        private void SwapIn(FileIndex fresh)
+        {
+            lock (write)
+            {
+                foreach (var old in volumes) { old.Stopped = true; try { old.Watcher?.Dispose(); } catch { } }
+                names = fresh.names; parents = fresh.parents; flags = fresh.flags; masks = fresh.masks;
+                count = fresh.count;
+                volumes.Clear(); volumes.AddRange(fresh.volumes);
+                UsedMft = fresh.UsedMft;
+                Interlocked.Increment(ref Epoch);
+            }
+        }
+
+        private bool JournalStillCovers(Volume v)
+        {
+            try
+            {
+                using SafeFileHandle h = Native.CreateFile(@"\\.\" + v.Letter, Native.GENERIC_READ,
+                    Native.FILE_SHARE_READ | Native.FILE_SHARE_WRITE, IntPtr.Zero, Native.OPEN_EXISTING, 0, IntPtr.Zero);
+                if (h.IsInvalid) return false;
+                if (!Native.DeviceIoControl(h, Native.FSCTL_QUERY_USN_JOURNAL, IntPtr.Zero, 0, out var jd,
+                        Marshal.SizeOf<Native.USN_JOURNAL_DATA_V0>(), out _, IntPtr.Zero)) return false;
+                return jd.UsnJournalID == v.JournalId && v.NextUsn >= jd.FirstUsn && v.NextUsn <= jd.NextUsn;
+            }
+            catch { return false; }
+        }
+
+        // ---------- saved index ----------
+
+        private System.Threading.Timer saveTimer;
+        private int savedGeneration = -1;
+
+        private void StartAutoSave()
+        {
+            saveTimer = new System.Threading.Timer(_ => { if (Generation != savedGeneration) SaveNow(); }, null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+        }
+
+        public void SaveNow()
+        {
+            if (!Ready || !Settings.SaveIndex) return;
+            try
+            {
+                IndexCache.Snapshot snap;
+                lock (write) snap = TakeSnapshot();
+                IndexCache.Save(snap);
+                savedGeneration = Generation;
+            }
+            catch { }
+        }
+
+        private IndexCache.Snapshot TakeSnapshot()
+        {
+            int n = count;
+            var snap = new IndexCache.Snapshot { Count = n, Names = new string[n], Parents = new int[n], Flags = new byte[n] };
+            Array.Copy(names, snap.Names, n); Array.Copy(parents, snap.Parents, n); Array.Copy(flags, snap.Flags, n);
+            foreach (var v in volumes)
+                snap.Volumes.Add(new IndexCache.Vol
+                {
+                    Letter = v.Letter, Root = v.Root, Mft = v.Frn != null, JournalId = v.JournalId, NextUsn = v.NextUsn,
+                    Frn = v.Frn?.Select(kv => (kv.Key, kv.Value)).ToArray(),
+                });
+            return snap;
+        }
+
+        /// Called by IndexCache.TryLoad with entries already compacted.
+        internal void LoadFrom(IndexCache.Snapshot s)
+        {
+            lock (write)
+            {
+                int cap = 1 << 16;
+                while (cap < s.Count + 1024) cap <<= 1;
+                names = new string[cap]; parents = new int[cap]; flags = new byte[cap]; masks = new ulong[cap];
+                Array.Copy(s.Names, names, s.Count); Array.Copy(s.Parents, parents, s.Count); Array.Copy(s.Flags, flags, s.Count);
+                for (int i = 0; i < s.Count; i++) masks[i] = Matcher.MaskOf(names[i]);
+                count = s.Count;
+                volumes.Clear();
+                foreach (var sv in s.Volumes)
+                {
+                    var v = new Volume { Letter = sv.Letter, Root = sv.Root, JournalId = sv.JournalId, NextUsn = sv.NextUsn };
+                    if (sv.Mft)
+                    {
+                        v.Frn = new Dictionary<ulong, int>(sv.Frn.Length + 16);
+                        foreach (var (k, i) in sv.Frn) v.Frn[k] = i;
+                    }
+                    volumes.Add(v);
+                }
+            }
+        }
+
+        // ---------- excluded folders and lookups ----------
+
+        public void RefreshExcluded()
+        {
+            var set = new HashSet<int>();
+            foreach (var p in Settings.Excluded ?? new List<string>())
+            {
+                int d = FindDir(Query.ExpandHome(p));
+                if (d >= 0) set.Add(d);
+            }
+            ExcludedDirs = set;
+        }
+
+        /// The index entry of the user's profile folder, cached until a rebuild.
+        public int UserDir
+        {
+            get
+            {
+                if (userDirEpoch != Epoch || userDir == -2 || (userDir < 0 && Ready))
+                {
+                    userDir = FindDir(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+                    userDirEpoch = Epoch;
+                }
+                return userDir;
+            }
         }
 
         /// For tests and tools: append one entry.
@@ -262,7 +471,7 @@ namespace Glint
             IntPtr buf = Marshal.AllocHGlobal(BufSize);
             try
             {
-                while (true)
+                while (!v.Stopped)
                 {
                     var rd = new Native.READ_USN_JOURNAL_DATA_V0
                     {
@@ -278,6 +487,7 @@ namespace Glint
                         int off = 8;
                         lock (write)
                         {
+                            if (v.Stopped) return;
                             while (off < got)
                             {
                                 byte* r = p + off;
@@ -338,7 +548,7 @@ namespace Glint
                 if (!parent.EndsWith("\\") && parent.Length == 2) parent += "\\";
                 lock (write)
                 {
-                    if (!v.DirsByPath.TryGetValue(parent, out int pi)) return;
+                    if (v.Stopped || !v.DirsByPath.TryGetValue(parent, out int pi)) return;
                     bool dir = Directory.Exists(full);
                     byte hid = (byte)((flags[pi] & Hidden) != 0 ? Hidden : 0);
                     int i = AddUnlocked(Path.GetFileName(full), pi, (byte)((dir ? Dir : 0) | hid));
@@ -360,7 +570,7 @@ namespace Glint
                 string name = Path.GetFileName(full);
                 lock (write)
                 {
-                    if (!v.DirsByPath.TryGetValue(parent, out int pi)) return;
+                    if (v.Stopped || !v.DirsByPath.TryGetValue(parent, out int pi)) return;
                     int n = count;
                     for (int i = n - 1; i >= 0; i--)
                         if (parents[i] == pi && (flags[i] & Gone) == 0 && string.Equals(names[i], name, StringComparison.OrdinalIgnoreCase))
