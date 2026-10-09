@@ -114,7 +114,7 @@ namespace Glint
 
             box.TextChanged += (s, e) => { placeholder.Visibility = box.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; Requery(); };
             PreviewKeyDown += OnKey;
-            Deactivated += (s, e) => { if (!dragging) HideBar(); };
+            Deactivated += (s, e) => { if (!dragging && !Demo) HideBar(); };
             index.Changed += () => Dispatcher.BeginInvoke(new Action(() => { if (IsVisible && box.Text.Length > 0) Requery(); else if (IsVisible) ShowStatus(); }));
 
             SourceInitialized += (s, e) =>
@@ -132,6 +132,11 @@ namespace Glint
         private static Brush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
 
         // ---------- show / hide with the drop-in ----------
+
+        /// Demo mode keeps the bar up when focus leaves (used for screenshots).
+        public bool Demo { get; set; }
+        public IntPtr Handle => hwnd;
+        public void SetQuery(string q) { box.Text = q; box.CaretIndex = q.Length; }
 
         public void Toggle() { if (IsVisible && IsActive) HideBar(); else ShowBar(); }
 
