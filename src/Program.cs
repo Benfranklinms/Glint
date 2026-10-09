@@ -35,13 +35,19 @@ namespace Glint
             {
                 index.Start();
                 hotkey.Register();
+                try { Settings.UpgradeLoginIfElevated(); } catch { }
                 tray = new Tray(app, window, index, settings, hotkey, () => { single.ReleaseMutex(); });
                 var waiter = new Thread(() =>
                 {
                     while (showSignal.WaitOne()) window.Dispatcher.BeginInvoke(new Action(window.ShowBar));
                 }) { IsBackground = true };
                 waiter.Start();
-                if (!settings.Welcomed) { settings.Welcomed = true; settings.Save(); window.ShowBar(); }
+                if (!settings.Welcomed)
+                {
+                    // first run: start with Windows by default (untick in the tray to stop)
+                    try { Settings.LaunchAtLogin = true; } catch { }
+                    settings.Welcomed = true; settings.Save(); window.ShowBar();
+                }
             };
             app.Exit += (s, e) => { tray?.Dispose(); hotkey.Dispose(); };
             app.Run();
