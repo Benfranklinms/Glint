@@ -1,0 +1,40 @@
+name: demo-screenshots
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', '.github/workflows/demo.yml']
+jobs:
+  demo:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish
+        run: dotnet publish src/Glint.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist
+      - name: Sample files
+        shell: pwsh
+        run: |
+          $d = "$env:USERPROFILE\Developer\fsearch"
+          New-Item -ItemType Directory -Force "$d\src","$env:USERPROFILE\Documents\College","$env:USERPROFILE\Pictures\Screenshots" | Out-Null
+          Set-Content "$d\src\main.rs" "fn main() {`n    // TODO: wire up the daemon`n    let dir = apply_dir(\"~\");`n}"
+          Set-Content "$d\src\index.rs" "pub fn apply_dir(p: &str) -> String {`n    // TODO: handle symlinks`n    p.to_string()`n}"
+          Set-Content "$d\Cargo.toml" "[package]`nname = `"fsearch`""
+          Set-Content "$d\README.md" "# fsearch"
+          Set-Content "$env:USERPROFILE\Documents\College\DBMS-lab-report.pdf" "x"
+          Set-Content "$env:USERPROFILE\Documents\College\maintenance-notes.md" "x"
+          Set-Content "$env:USERPROFILE\Documents\resume-final-v3.pdf" "x"
+          1..4 | % { [IO.File]::WriteAllBytes("$env:USERPROFILE\Pictures\Screenshots\Screenshot 2026-10-0$_.png", (New-Object byte[] (2MB))) }
+      - name: Run demo
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\Glint.exe -ArgumentList @('--demo', "$pwd\shots", 'mian', 'raedme', 'resume ext:pdf', 'type:image in:~/Pictures', 'grep:TODO in:~/Developer', 'maintenence') -PassThru
+          if (-not $p.WaitForExit(420000)) { $p.Kill() }
+          Get-Content shots\demo-log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: glint-demo
+          path: shots
