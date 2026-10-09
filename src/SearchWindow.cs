@@ -326,7 +326,7 @@ namespace Glint
             divider.Visibility = scroller.Visibility = Visibility.Visible;
             var head = new TextBlock { FontSize = 15, Foreground = TextBrush, TextTrimming = TextTrimming.CharacterEllipsis };
             head.Inlines.Add(new Run(h.Name) { FontWeight = FontWeights.SemiBold });
-            head.Inlines.Add(new Run("  line " + h.Line) { Foreground = SubBrush, FontSize = 12.5 });
+            head.Inlines.Add(new Run("  " + (h.LineLabel ?? "line " + h.Line)) { Foreground = SubBrush, FontSize = 12.5 });
             string snip = h.Snippet ?? "";
             int lead = snip.Length - snip.TrimStart().Length;
             snip = snip.TrimStart();
@@ -441,7 +441,7 @@ namespace Glint
             try
             {
                 if (reveal) Process.Start("explorer.exe", $"/select,\"{h.Path}\"");
-                else if (h.Line > 0 && FindCode() is string code)
+                else if (h.Line > 0 && h.LineLabel == null && FindCode() is string code)
                     Process.Start(new ProcessStartInfo(code, $"-g \"{h.Path}:{h.Line}\"") { UseShellExecute = false, CreateNoWindow = true });
                 else Process.Start(new ProcessStartInfo(h.Path) { UseShellExecute = true });
                 HideBar();
