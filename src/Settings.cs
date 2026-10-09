@@ -56,6 +56,15 @@ namespace Glint
             }
         }
 
+        /// Once Glint runs elevated, swap a plain Run-key start for the logon
+        /// task, so the fast index keeps working at every sign-in.
+        public static void UpgradeLoginIfElevated()
+        {
+            if (!Native.IsAdmin()) return;
+            using var k = Registry.CurrentUser.OpenSubKey(RunKey);
+            if (k?.GetValue("Glint") != null) LaunchAtLogin = true;
+        }
+
         private static int Schtasks(string args)
         {
             try
