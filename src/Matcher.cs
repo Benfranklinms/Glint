@@ -22,6 +22,7 @@ namespace Glint
         public int Line;
         public string Snippet;
         public int MatchStart, MatchLength;
+        public string LineLabel; // "line 12", "page 3", "slide 2"
     }
 
     /// One parsed query: fuzzy words plus filters, in the same syntax as fsearch.
@@ -156,6 +157,35 @@ namespace Glint
             return m;
         }
 
+        private static readonly HashSet<string> NoisyDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Windows", "AppData", "Program Files", "Program Files (x86)", "ProgramData", "node_modules", "$Recycle.Bin",
+            "target", "obj", "bin", "site-packages", "dist-packages", "WinSxS", "vendor", "packages", "vcpkg", "Strawberry",
+            "Modules", "hostedtoolcache", "Library", "__pycache__", "venv", "build",
+        };
+
+        /// Where a file lives matters as much as its name: your own folders
+        /// beat toolchains, caches and system trees. Walks the parent chain once.
+        private static int LocationBias(string[] names, int[] parents, int i, int userDir)
+        {
+            bool underUser = false, noisy = false; int depth = 0;
+            for (int p = parents[i]; p >= 0; p = parents[p])
+            {
+                if (p == userDir) { underUser = true; break; }
+                string n = names[p];
+                if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) noisy = true;
+                depth++;
+                if (depth > 64) break;
+            }
+            if (underUser)
+                for (int p = parents[i]; p >= 0 && p != userDir; p = parents[p])
+                { string n = names[p]; if (n.Length > 0 && (n[0] == '.' || n[0] == '$') || NoisyDirs.Contains(n)) { noisy = true; break; } }
+            int b = -Math.Min(depth * 6, 60);
+            if (noisy) b -= 220;
+            else if (underUser) b += 160;
+            return b;
+        }
+
         private static readonly string[] Noisy =
         {
             @"\windows\", @"\appdata\", @"\program files", @"\programdata\", @"\node_modules\", @"\.git\",
@@ -274,6 +304,7 @@ namespace Glint
             var exclude = q.Words.Where(w => w.Exclude).ToList();
 
             const int Keep = 400;
+            int userDir = idx.FindDir(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
             var buckets = new List<(int score, int i, bool typo, string word)>[Environment.ProcessorCount];
             int chunk = Math.Max(1 << 15, n / (buckets.Length * 4) + 1);
             int parts = (n + chunk - 1) / chunk;
@@ -315,6 +346,7 @@ namespace Glint
                     if (!ok) continue;
                     if (inDir >= 0 && !idx.IsUnder(i, inDir)) continue;
                     if (include.Count == 0) total = 500 - Math.Min(name.Length, 120);
+                    total += LocationBias(names, parents, i, userDir);
                     local.Add((total, i, anyTypo, corrected));
                 }
                 if (local.Count > Keep) local = local.OrderByDescending(x => x.Item1).Take(Keep).ToList();
@@ -330,9 +362,6 @@ namespace Glint
                 string lower = path.ToLowerInvariant();
                 if (q.PathContains != null && lower.IndexOf(q.PathContains.ToLowerInvariant(), StringComparison.Ordinal) < 0) continue;
                 int s = score;
-                foreach (var noisy in Noisy) if (lower.Contains(noisy)) { s -= 220; break; }
-                if (lower.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).ToLowerInvariant())) s += 60;
-                s -= Math.Min(path.Count(ch => ch == '\\') * 6, 60);
                 hits.Add(new Hit { Index = i, Name = names[i], Path = path, IsDir = (flags[i] & FileIndex.Dir) != 0, Score = s, ViaTypo = typo, Corrected = word });
             }
             IEnumerable<Hit> ordered = hits.OrderByDescending(h => h.Score);
