@@ -26,17 +26,24 @@ namespace Glint
 
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var settings = Settings.Load();
-            var index = new FileIndex();
-            var window = new SearchWindow(index);
+            Usage.Load();
+            var index = new FileIndex { Settings = settings };
+            var window = new SearchWindow(index, settings);
             var hotkey = new Hotkey(settings, window);
             Tray tray = null;
 
             app.Startup += (s, e) =>
             {
                 index.Start();
+                if (settings.Apps) AppIndex.Start();
+                // the content index waits for the name index so the two don't fight over the disk
+                index.Changed += StartContentOnce;
+                void StartContentOnce() { if (!index.Ready) return; index.Changed -= StartContentOnce; ContentIndex.Start(settings); }
+                Updater.Start(settings);
                 hotkey.Register();
                 try { Settings.UpgradeLoginIfElevated(); } catch { }
                 tray = new Tray(app, window, index, settings, hotkey, () => { single.ReleaseMutex(); });
+                window.OpenSettings = tray.OpenSettings;
                 var waiter = new Thread(() =>
                 {
                     while (showSignal.WaitOne()) window.Dispatcher.BeginInvoke(new Action(window.ShowBar));
@@ -49,7 +56,7 @@ namespace Glint
                     settings.Welcomed = true; settings.Save(); window.ShowBar();
                 }
             };
-            app.Exit += (s, e) => { tray?.Dispose(); hotkey.Dispose(); };
+            app.Exit += (s, e) => { try { index.SaveNow(); } catch { } tray?.Dispose(); hotkey.Dispose(); };
             app.Run();
         }
     }
@@ -118,7 +125,26 @@ namespace Glint
             Fill();
             if (hotkey.Active == null)
                 icon.ShowBalloonTip(6000, "Glint", "Another app holds the shortcut. Pick a different one from the tray menu.", WinForms.ToolTipIcon.Warning);
+            Updater.Ready += () => window.Dispatcher.BeginInvoke(new Action(() =>
+                icon.ShowBalloonTip(8000, "Glint " + Updater.ReadyVersion + " is ready", "Choose Restart to update in the tray menu.", WinForms.ToolTipIcon.Info)));
         }
+
+        private SettingsWindow settingsWindow;
+
+        public void OpenSettings()
+        {
+            window.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (settingsWindow != null) { settingsWindow.Activate(); return; }
+                settingsWindow = new SettingsWindow(settings, hotkey, window, Restart, () => Relaunch(true), index.Rebuild)
+                { ExcludedChanged = () => System.Threading.Tasks.Task.Run(() => index.RefreshExcluded()) };
+                settingsWindow.Closed += (s, e) => settingsWindow = null;
+                settingsWindow.Show();
+                settingsWindow.Activate();
+            }));
+        }
+
+        private void Restart() => Relaunch(Native.IsAdmin());
 
         private void Fill()
         {
@@ -127,6 +153,10 @@ namespace Glint
             m.Items.Clear();
             m.Items.Add(new WinForms.ToolStripMenuItem("Search", null, (s, e) => window.ShowBar()) { ShortcutKeyDisplayString = hotkey.Active ?? "" });
             m.Items.Add(new WinForms.ToolStripMenuItem(index.Status) { Enabled = false });
+            if (settings.ContentIndex && ContentIndex.Status.Length > 0) m.Items.Add(new WinForms.ToolStripMenuItem(ContentIndex.Status) { Enabled = false });
+            if (Updater.ReadyVersion != null)
+                m.Items.Add(new WinForms.ToolStripMenuItem($"Restart to update to {Updater.ReadyVersion}", null, (s, e) =>
+                { icon.Visible = false; releaseInstance(); Updater.ApplyAndRestart(() => app.Shutdown()); }) { Font = new Font(m.Font, System.Drawing.FontStyle.Bold) });
             m.Items.Add(new WinForms.ToolStripSeparator());
 
             var keys = new WinForms.ToolStripMenuItem("Shortcut");
@@ -141,8 +171,9 @@ namespace Glint
                 m.Items.Add(new WinForms.ToolStripMenuItem("Use fast NTFS index (restart as administrator)", null, (s, e) => Relaunch(true))
                 { ToolTipText = "Reads the drive's file table directly: seconds to index, changes show up instantly." });
             m.Items.Add(new WinForms.ToolStripMenuItem("Open at sign-in", null, (s, e) => { try { Settings.LaunchAtLogin = !SafeLogin(); } catch { } }) { Checked = SafeLogin() });
+            m.Items.Add(new WinForms.ToolStripMenuItem("Settings…", null, (s, e) => OpenSettings()));
             m.Items.Add(new WinForms.ToolStripSeparator());
-            m.Items.Add(new WinForms.ToolStripMenuItem("Quit Glint", null, (s, e) => { icon.Visible = false; app.Shutdown(); }));
+            m.Items.Add(new WinForms.ToolStripMenuItem($"Quit Glint {Updater.Short(Updater.Current)}", null, (s, e) => { icon.Visible = false; app.Shutdown(); }));
         }
 
         private static bool SafeLogin() { try { return Settings.LaunchAtLogin; } catch { return false; } }
